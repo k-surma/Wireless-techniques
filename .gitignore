@@ -1,0 +1,33 @@
+# MATLAB specific files
+*.asv            # Autosave files
+*.m~             # Backup files
+*.mlx            # Live script files
+*.mlapp          # App Designer files
+*.mat            # MATLAB binary data files 
+*.p              # Compiled MATLAB files
+*.mex*           # MATLAB executable files for specific platforms
+
+# Simulink specific files
+*.slxc           # Simulink cache files
+*.mdl            # Older Simulink model files
+*.sldd           # Simulink data dictionary files
+
+# Project files
+*.prj            # MATLAB project files 
+
+# User-specific files
+*.user.matlab    # User-specific settings
+*.log            # Log files
+
+# Generated outputs
+*.out
+*.tmp
+*.bak            # Backup files
+*.swp            # Swap files
+
+# System specific files
+.DS_Store        # macOS
+Thumbs.db        # Windows
+
+# Folders
+slprj/           # Simulink code generation folder
