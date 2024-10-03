@@ -18,7 +18,7 @@ Here are the specific labs you’ll find in this repository:
 6. **Active Radar**
 7. **Passive Localization**
 
-## What You’ll Do
+
 
 Each lab involves writing and running **MATLAB** code to simulate key wireless communication scenarios by:
 - Implementing real-world simulations that demonstrate how wireless technologies work.
