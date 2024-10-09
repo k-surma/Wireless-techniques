@@ -1,6 +1,6 @@
 # Wireless Communication Techniques - Lab Exercises
 
-Welcome to my repository! This project contains lab exercises that I developed as part of the **Wireless Communication Techniques** course. As a student exploring modern wireless systems, I created this repository to document my learning process and to share resources with others who are passionate about wireless communication. This repository will guide you through various key concepts by using hands-on MATLAB simulations.
+This project contains lab exercises that I developed as part of the **Wireless Communication Techniques** course. As a student exploring modern wireless systems, I created this repository to document my learning process and to share resources with others. This repository will guide you through various key concepts by using hands-on MATLAB simulations.
 
 ## Why I Created This Repo
 
