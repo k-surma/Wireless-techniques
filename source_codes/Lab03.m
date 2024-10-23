@@ -1,63 +1,75 @@
 %zaniki sygnału w komunikacji mobilnej
 
-clearvars; close all; clc;
+clearvars; close all; clc; 
 
-% Parametry początkowe
-v = 30; % prędkość w m/s
-t_max = 6; % czas obserwacji w sekundach
-dt = 0.01; % krok czasu, 10 ms
-t = 0:dt:t_max; % wektor czasu
+v = 20; % m/s - prędkość użytkownika
+initial_pos = [20,20]; % Pozycja początkowa użytkownika [x,y]
+final_pos = [20,500]; % Pozycja końcowa użytkownika (nie jest bezpośrednio używana w kodzie)
+duration = 5; % Czas trwania ruchu w sekundach
+dt = 0.01; % Krok czasowy symulacji (co 0.01 sekundy)
+time_steps = 0:dt:duration; % Wektor czasu od 0 do 'duration' z krokiem 'dt'
 
-% Pozycja początkowa użytkownika i stacji bazowej
-user_pos_start = [50, 10]; % (x, y) początkowe użytkownika
-user_velocity = [0, v]; % prędkość (x, y)
-bs_pos = [110, 190]; % pozycja stacji BS
+P_bs = 10; % W - Moc nadajnika bazowego (BS)
+BS_pos = [160, 20]; % Pozycja nadajnika bazowego [x,y]
+frequency = 2e9; % Częstotliwość sygnału (2 GHz)
+reflection_coeff = 0.7; % Współczynnik odbicia sygnału od ścian
+c = 3e8; % Prędkość światła (300 000 000 m/s)
 
 % Pozycje ścian
-wall1_start = [20, 30]; wall1_end = [20, 300];
-wall2_start = [70, 100]; wall2_end = [130, 100];
+wall1_start = [0,10]; wall1_end = [200,10]; % Ściana 1 pozioma
+wall2_start = [60,50]; wall2_end = [100,50]; % Ściana 2 pionowa
 
-% Inne parametry
-P_BS = 5; % Moc stacji bazowej w Watach
-f = 3e9; % Częstotliwość 3 GHz
-c = 3e8; % prędkość światła
-lambda = c / f; % długość fali
-reflection_coeff = 0.8; % współczynnik odbicia ścian
+num_steps = length(time_steps); % Liczba kroków czasowych
 
-% Funkcja do obliczania odległości między dwoma punktami
-distance = @(p1, p2) sqrt((p1(1)-p2(1))^2 + (p1(2)-p2(2))^2);
+% Inicjalizacja macierzy na pozycje użytkownika
+user_positions = zeros(num_steps, 2); 
+for n = 1:num_steps 
+    % Obliczanie pozycji użytkownika w każdej chwili (porusza się tylko wzdłuż osi Y)
+    user_positions(n, :) = initial_pos + [0, v * time_steps(n)]; 
+end 
 
-% Wyznaczenie obrazów stacji BS przez odbicie od ścian
-bs_image1 = bs_pos; bs_image1(1) = 2*wall1_start(1) - bs_pos(1); % odbicie przez ścianę 1
-bs_image2 = bs_pos; bs_image2(2) = 2*wall2_start(2) - bs_pos(2); % odbicie przez ścianę 2
+% Inicjalizacja macierzy na moc sygnału odbieranego w każdym kroku
+received_power = zeros(size(time_steps)); 
 
-% Inicjalizacja wektora mocy
-P_received = zeros(size(t));
-
-% Symulacja ruchu użytkownika i obliczenie mocy sygnału
-for i = 1:length(t)
-    user_pos = user_pos_start + user_velocity * t(i); % pozycja użytkownika w danym czasie
+for n = 1:num_steps 
+    % Aktualna pozycja użytkownika
+    user_pos = user_positions(n, :); 
     
-    % Odległości do BS i jego obrazów
-    d_direct = distance(user_pos, bs_pos);
-    d_reflect1 = distance(user_pos, bs_image1);
-    d_reflect2 = distance(user_pos, bs_image2);
-    
-    % Moc sygnału bezpośredniego
-    P_direct = P_BS * (lambda / (4 * pi * d_direct))^2;
-    
-    % Moc sygnałów odbitych
-    P_reflect1 = P_BS * (lambda / (4 * pi * d_reflect1))^2 * reflection_coeff;
-    P_reflect2 = P_BS * (lambda / (4 * pi * d_reflect2))^2 * reflection_coeff;
-    
-    % Sumowanie mocy (uwzględniamy sumę kwadratów ze względu na interferencję)
-    P_received(i) = P_direct + P_reflect1 + P_reflect2;
-end
+    % Obliczenie odległości od nadajnika do użytkownika (sygnał bezpośredni)
+    direct_distance = norm(BS_pos - user_pos); 
+    direct_signal = P_bs / (direct_distance^2); % Moc sygnału bezpośredniego (prawo odwrotności kwadratu odległości)
 
-% Wykres mocy odbieranego sygnału
-figure;
-plot(t, 10*log10(P_received));
-xlabel('Czas [s]');
-ylabel('Moc odbieranego sygnału [dB]');
-title('Moc odbieranego sygnału przez użytkownika');
-grid on;
+    % Obliczenie odległości odbicia od ściany 1 (pozioma ściana)
+    reflected_point1 = [wall1_start(1), user_pos(2)]; % Punkt odbicia na ścianie 1
+    reflected_distance1 = norm(BS_pos - reflected_point1) + norm(reflected_point1 - user_pos); 
+    reflected_signal1 = reflection_coeff * P_bs / (reflected_distance1^2); % Moc sygnału odbitego od ściany 1
+
+    % Obliczenie odległości odbicia od ściany 2 (pionowa ściana)
+    reflected_point2 = [user_pos(1), wall2_start(2)]; % Punkt odbicia na ścianie 2
+    reflected_distance2 = norm(BS_pos - reflected_point2) + norm(reflected_point2 - user_pos); 
+    reflected_signal2 = reflection_coeff * P_bs / (reflected_distance2^2); % Moc sygnału odbitego od ściany 2
+
+    % Obliczenie długości fali sygnału
+    wavelength = c / frequency; % Długość fali w metrach
+    
+    % Obliczenie przesunięć fazowych dla sygnałów (w zależności od przebytej odległości)
+    phase_shift_direct = 2 * pi * direct_distance / wavelength; % Przesunięcie fazowe sygnału bezpośredniego
+    phase_shift2 = 2 * pi * reflected_distance2 / wavelength; % Przesunięcie fazowe dla ściany 2
+    phase_shift1 = 2 * pi * reflected_distance1 / wavelength; % Przesunięcie fazowe dla ściany 1
+    
+    % Sumowanie sygnału bezpośredniego i odbitych z przesunięciem fazowym
+    combined_signal = direct_signal + ...
+                      reflected_signal1 * exp(1j * phase_shift1) + ...
+                      reflected_signal2 * exp(1j * phase_shift2); 
+                  
+    % Obliczenie mocy sygnału (moduł sygnału zsumowanego podniesiony do kwadratu)
+    received_power(n) = abs(combined_signal)^2; 
+end 
+
+% Rysowanie wykresu mocy odbieranego sygnału w dB w funkcji czasu
+figure; 
+plot(time_steps, 10*log10(received_power)); % Konwersja mocy na skalę dB
+xlabel('Czas (s)'); % Oś x: Czas
+ylabel('Moc odbieranego sygnału (dB)'); % Oś y: Moc w dB
+title('Moc odbieranego sygnału w czasie z efektami wielodrogowymi'); % Tytuł wykresu
+grid on; % Włączenie siatki na wykresie
