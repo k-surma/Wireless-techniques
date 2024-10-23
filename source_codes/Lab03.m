@@ -72,4 +72,4 @@ plot(time_steps, 10*log10(received_power)); % Konwersja mocy na skalę dB
 xlabel('Czas (s)'); % Oś x: Czas
 ylabel('Moc odbieranego sygnału (dB)'); % Oś y: Moc w dB
 title('Moc odbieranego sygnału w czasie z efektami wielodrogowymi'); % Tytuł wykresu
-grid on; % Włączenie siatki na wykresie
+grid on; 
