@@ -1,158 +1,127 @@
-clearvars; close all; clc;
+clc;
+clearvars;
+close all;
 
-% Parametry terenu
-terrain_width = 80;   % szerokość terenu (m)
-terrain_height = 70;  % wysokość terenu (m)
+% Parametry terenu i stacji referencyjnych
+width = 80; % szerokość terenu (m)
+height = 70; % wysokość terenu (m)
+num_robots = 90; % liczba robotów
 
-% Parametry robotów i stacji referencyjnych
-num_robots = 90;     % liczba robotów
-sigma_angle = 2;     % odchylenie standardowe dla kąta (w stopniach)
+% Pozycje stacji referencyjnych
+stations = [0, 0; 
+            width, 0; 
+            width, height; 
+            0, height];
 
-% Pozycje stacji referencyjnych w rogach prostokąta
-ref_stations = [
-    0, 0;
-    terrain_width, 0;
-    terrain_width, terrain_height;
-    0, terrain_height
-];
+% Generowanie losowych pozycji robotów
+robots_pos = [width * rand(num_robots, 1), height * rand(num_robots, 1)];
 
-% Losowa pozycja robotów na terenie
-robot_positions = [terrain_width * rand(num_robots, 1), terrain_height * rand(num_robots, 1)];
+% Zmienna przechowująca oszacowane pozycje robotów
+estimated_pos = zeros(num_robots, 2);
 
-% Macierz przechowująca wyznaczone pozycje robotów
-estimated_positions = zeros(num_robots, 2);
+% Szum kątowy
+angle_noise_std = 2; % odchylenie standardowe szumu (deg)
 
-% Główna pętla dla każdego robota
+% Obliczanie oszacowanych pozycji robotów
 for i = 1:num_robots
-    % Inicjalizacja macierzy do algorytmu najmniejszych kwadratów
-    A = zeros(4, 2);
-    b = zeros(4, 1);
-    
-    for j = 1:4
-        % Wektor od robota do stacji referencyjnej
-        dx = ref_stations(j, 1) - robot_positions(i, 1);
-        dy = ref_stations(j, 2) - robot_positions(i, 2);
-        
-        % Sprawdzenie, czy dx i dy są różne od zera
-        if dx == 0 && dy == 0
-            continue; % Pomiń, gdy robot jest w tym samym miejscu co stacja
-        end
-        
+    A = [];
+    b = [];
+    for j = 1:size(stations, 1)
         % Prawdziwy kąt nadejścia sygnału
-        true_angle = atand(dy / dx);
+        true_angle = atand((robots_pos(i, 2) - stations(j, 2)) / (robots_pos(i, 1) - stations(j, 1)));
         
-        % Dodanie błędu do kąta nadejścia sygnału
-        observed_angle = true_angle + sigma_angle * randn;
+        % Szum
+        angle_noise = angle_noise_std * randn;
         
-        % Zapisanie równań do macierzy A i wektora b
-        A(j, :) = [tand(observed_angle), -1];
-        b(j) = tand(observed_angle) * ref_stations(j, 1) - ref_stations(j, 2);
+        % Oszacowany kąt nadejścia sygnału
+        estimated_angle = true_angle + angle_noise;
+        
+        % Wyznaczanie równań dla algorytmu najmniejszych kwadratów
+        A = [A; tand(estimated_angle), -1];
+        b = [b; tand(estimated_angle) * stations(j, 1) - stations(j, 2)];
     end
     
-    % Wyznaczenie pozycji robota za pomocą algorytmu najmniejszych kwadratów
-    try
-        estimated_positions(i, :) = (A' * A) \ (A' * b);
-    catch
-        estimated_positions(i, :) = [NaN, NaN]; % Ustal pozycję jako NaN, gdy nie można obliczyć
-    end
+    % Algorytm najmniejszych kwadratów z pseudoinwersją
+    estimated_pos(i, :) = pinv(A' * A) * (A' * b);
 end
 
-% Obliczenie średniego błędu lokalizacji
-localization_error = sqrt(sum((robot_positions - estimated_positions).^2, 2));
-localization_error(isnan(localization_error)) = []; % Usunięcie NaN
-mean_error = mean(localization_error);
+% Obliczanie średniego błędu lokalizacji
+location_errors = sqrt(sum((robots_pos - estimated_pos).^2, 2));
+mean_location_error = mean(location_errors);
 
-% Wizualizacja wyników
+% Wyświetlanie wyników
 figure;
-subplot(1,2,1);
 hold on;
-% Pozycje stacji referencyjnych
-plot(ref_stations(:, 1), ref_stations(:, 2), 'bs', 'MarkerSize', 10, 'DisplayName', 'Stacje referencyjne');
-
-% Prawdziwe pozycje robotów
-plot(robot_positions(:, 1), robot_positions(:, 2), 'go', 'DisplayName', 'Prawdziwe pozycje robotów');
-
-% Wyznaczone pozycje robotów
-plot(estimated_positions(:, 1), estimated_positions(:, 2), 'rx', 'DisplayName', 'Wyznaczone pozycje robotów');
-
-% Legenda i tytuły
-legend show;
-title(sprintf('Symulacja lokalizacji robotów, średni błąd lokalizacji: %.2f m', mean_error));
+scatter(robots_pos(:, 1), robots_pos(:, 2), 'b', 'filled'); % prawdziwe pozycje robotów
+scatter(estimated_pos(:, 1), estimated_pos(:, 2), 'r'); % oszacowane pozycje robotów
+scatter(stations(:, 1), stations(:, 2), 'g', 'filled'); % pozycje stacji referencyjnych
+legend('Prawdziwe pozycje robotów', 'Oszacowane pozycje robotów', 'Stacje referencyjne');
 xlabel('X (m)');
 ylabel('Y (m)');
-axis([0 terrain_width 0 terrain_height]);
+title(['Średni błąd lokalizacji: ', num2str(mean_location_error), ' m']);
 grid on;
+axis equal;
 hold off;
 
 % -----------------------------------------
 % Symulacja mapy błędu lokalizacji dla każdego punktu na siatce 1x1 m
 % -----------------------------------------
 
-% Parametry mapy błędu
-error_map = zeros(terrain_height + 1, terrain_width + 1); % Macierz przechowująca błędy
+% Rozdzielczość siatki (1 metr)
+[x_grid, y_grid] = meshgrid(1:width, 1:height);
 
-% Pętla dla każdej pozycji na siatce 1x1 m
+% Macierz do przechowywania średniego błędu lokalizacji
+error_map = zeros(height, width);
+
+% Liczba symulacji dla uśrednienia błędów
 num_simulations = 50;
-for x = 0:terrain_width
-    for y = 0:terrain_height
-        total_error = 0; % Suma błędów dla danej pozycji (x, y)
+
+% Funkcja pomocnicza do obliczania błędu lokalizacji
+calculate_error = @(true_pos, estimated_pos) sqrt(sum((true_pos - estimated_pos).^2));
+
+% Przeprowadzanie symulacji dla każdej pozycji na siatce
+for x = 1:width
+    for y = 1:height
+        errors = zeros(num_simulations, 1);
         
         for sim = 1:num_simulations
-            % Rzeczywista pozycja robota
-            robot_position = [x, y];
+            true_pos = [x, y];
+            A = [];
+            b = [];
             
-            % Inicjalizacja macierzy dla metody najmniejszych kwadratów
-            A = zeros(4, 2);
-            b = zeros(4, 1);
-            
-            for j = 1:4
-                % Wektor od stacji referencyjnej do robota
-                dx = ref_stations(j, 1) - robot_position(1);
-                dy = ref_stations(j, 2) - robot_position(2);
+            for j = 1:size(stations, 1)
+                % Prawdziwy kąt nadejścia sygnału
+                true_angle = atand((true_pos(2) - stations(j, 2)) / (true_pos(1) - stations(j, 1)));
                 
-                % Sprawdzenie, czy dx i dy są różne od zera
-                if dx == 0 && dy == 0
-                    continue; % Pomiń, gdy robot jest w tym samym miejscu co stacja
-                end
+                % Szum
+                angle_noise = angle_noise_std * randn;
                 
-                % Prawdziwy kąt
-                true_angle = atand(dy / dx);
+                % Oszacowany kąt nadejścia sygnału
+                estimated_angle = true_angle + angle_noise;
                 
-                % Szacowany kąt z błędem
-                observed_angle = true_angle + sigma_angle * randn;
-                
-                % Równania do algorytmu najmniejszych kwadratów
-                A(j, :) = [tand(observed_angle), -1];
-                b(j) = tand(observed_angle) * ref_stations(j, 1) - ref_stations(j, 2);
+                % Wyznaczanie równań dla algorytmu najmniejszych kwadratów
+                A = [A; tand(estimated_angle), -1];
+                b = [b; tand(estimated_angle) * stations(j, 1) - stations(j, 2)];
             end
             
-            % Wyznaczanie pozycji metodą najmniejszych kwadratów
-            try
-                estimated_position = (A' * A) \ (A' * b);
-            catch
-                estimated_position = NaN(2, 1); % Ustal pozycję jako NaN, gdy nie można obliczyć
-            end
+            % Algorytm najmniejszych kwadratów z pseudoinwersją
+            estimated_pos = pinv(A' * A) * (A' * b);
             
-            % Obliczenie błędu dla danej symulacji
-            if all(~isnan(estimated_position))
-                error = norm(estimated_position' - robot_position);
-            else
-                error = NaN; % W przypadku osobliwości, ustal błąd jako NaN
-            end
-            
-            total_error = total_error + error;
+            % Obliczanie błędu lokalizacji
+            errors(sim) = calculate_error(true_pos, estimated_pos');
         end
         
-        % Uśredniony błąd dla pozycji (x, y)
-        error_map(y + 1, x + 1) = total_error / num_simulations;
+        % Średni błąd lokalizacji dla pozycji (x, y)
+        error_map(y, x) = mean(errors);
     end
 end
 
-% Wyświetlanie mapy błędu
-subplot(1,2,2);
+% Wizualizacja mapy błędów lokalizacji
+figure;
 pcolor(transpose(error_map));
 shading interp;
 colorbar;
-title('Mapa błędu lokalizacji w zależności od pozycji robota');
+title('Średni błąd lokalizacji w zależności od pozycji robota');
 xlabel('X (m)');
 ylabel('Y (m)');
+axis equal tight;
